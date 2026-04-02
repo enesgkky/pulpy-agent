@@ -9,11 +9,16 @@ import {
   Res,
   Header,
   Logger,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { ConversationService } from './conversation.service';
 import { AgentService } from '../agent/agent.service';
 import { SandboxService } from '../agent/sandbox.service';
+import { join } from 'path';
+import { writeFile } from 'fs/promises';
 import {
   CreateConversationDto,
   UpdateConversationDto,
@@ -40,7 +45,7 @@ export class ConversationController {
     private readonly conversationService: ConversationService,
     private readonly agentService: AgentService,
     private readonly sandboxService: SandboxService,
-  ) {}
+  ) { }
 
   // ─── Conversation CRUD ────────────────────────────────────
 
@@ -70,6 +75,21 @@ export class ConversationController {
     return this.conversationService.remove(id);
   }
 
+  // ─── File Upload ──────────────────────────────────────────
+
+  @Post(':id/upload')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFile(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const workspaceDir = await this.sandboxService.getWorkspaceDir(id);
+    const filePath = join(workspaceDir, file.originalname);
+    await writeFile(filePath, file.buffer);
+    this.logger.log(`[file] Saved ${file.originalname} to ${workspaceDir}`);
+    return { filename: file.originalname, size: file.size };
+  }
+
   // ─── Message History ──────────────────────────────────────
 
   @Get(':id/history')
@@ -94,9 +114,17 @@ export class ConversationController {
 
     const backend = await this.sandboxService.getOrCreate(conversation.id);
 
+    this.logger.log(
+      `Test 12345`,
+    );
+
     const mcpTools = dto.mcpServers?.length
       ? await getMcpTools(dto.mcpServers)
       : [];
+
+    this.logger.log(
+      `Test After Mcp code`,
+    );
 
     const agentOptions = {
       service: dto.service,
@@ -107,9 +135,17 @@ export class ConversationController {
       mcpTools,
     };
 
+    this.logger.log(
+      `Test After Agent Options code`,
+    );
+
     // Send conversationId as custom SSE event
     res.write(
       `event: custom\ndata: ${JSON.stringify({ conversationId: conversation.id })}\n\n`,
+    );
+
+    this.logger.log(
+      `Test Before Stream code`,
     );
 
     const { stream: sseStream } = await this.agentService.getEncodedStream(
@@ -117,16 +153,41 @@ export class ConversationController {
       agentOptions,
     );
 
+    this.logger.log(
+      `Test After Stream code`,
+    );
+
     const decoder = new TextDecoder();
     let sseBuffer = '';
     let lastAssistantContent = '';
 
+    this.logger.log(
+      `Test Before Try code`,
+    );
+
     try {
+      this.logger.log('Test Entered try block, waiting for first chunk');
+      let chunkCount = 0;
       for await (const chunk of sseStream) {
-        res.write(Buffer.from(chunk));
+        chunkCount++;
+        this.logger.log(`Test Received chunk #${chunkCount}, type: ${typeof chunk}, isBuffer: ${Buffer.isBuffer(chunk)}`);
+        
+        try {
+          const bufferChunk = Buffer.from(chunk);
+          this.logger.log(`Test Buffered chunk #${chunkCount}, byteLength: ${bufferChunk.byteLength}`);
+          const writeResult = res.write(bufferChunk);
+          this.logger.log(`Test res.write returned: ${writeResult}`);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+            this.logger.log(`Test Called res.flush()`);
+          }
+        } catch (bufErr: any) {
+          this.logger.error(`Test Error writing chunk #${chunkCount}: ${bufErr?.message}`, bufErr?.stack);
+        }
 
         sseBuffer += decoder.decode(chunk, { stream: true });
         const events = sseBuffer.split('\n\n');
+        this.logger.log(`Test Chunk #${chunkCount} yielded ${events.length} potential events`);
         sseBuffer = events.pop() || '';
 
         for (const block of events) {
@@ -140,16 +201,21 @@ export class ConversationController {
               const last = data.messages[data.messages.length - 1];
               if (last.type === 'ai') {
                 const text = extractTextContent(last.content);
-                if (text) lastAssistantContent = text;
+                if (text) {
+                  lastAssistantContent = text;
+                  this.logger.log(`Test parsed AI text content (length: ${text.length})`);
+                }
               }
             }
-          } catch {
-            // skip malformed JSON
+          } catch (parseErr: any) {
+            this.logger.warn(`Test Failed to parse data block: ${parseErr?.message}`);
           }
         }
+        this.logger.log(`Test Finished processing chunk #${chunkCount}`);
       }
+      this.logger.log(`Test Exited for-await loop. Total chunks: ${chunkCount}`);
     } catch (streamError: any) {
-      this.logger.error(`[stream] Error: ${streamError?.message}`);
+      this.logger.error(`Test [stream] Error caught during iteration: ${streamError?.message}`, streamError?.stack);
       try {
         res.write(
           `event: error\ndata: ${JSON.stringify({ error: streamError?.message })}\n\n`,

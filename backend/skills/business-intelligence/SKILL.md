@@ -1,6 +1,7 @@
 ---
 name: business-intelligence
-description: "Use this skill when the user asks to analyze data, create reports, build dashboards, generate charts, calculate KPIs, or perform any business intelligence task. Covers data analysis, visualization, metric calculation, and insight generation."
+description: >
+  Use this skill when the user asks to analyze data, create reports, build dashboards, generate charts, calculate KPIs, or perform any business intelligence task. Covers data analysis, visualization, metric calculation, and insight generation.
 ---
 
 # Business Intelligence Skill

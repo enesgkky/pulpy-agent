@@ -20,7 +20,7 @@ export interface AgentOptions {
 
 @Injectable()
 export class AgentService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) { }
 
   private createModel(options: AgentOptions): BaseLanguageModel | undefined {
     const service = options.service;
