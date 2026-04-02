@@ -1,0 +1,27 @@
+﻿backend-1  | langsmith/experimental/sandbox is in alpha. This feature is experimental, and breaking changes are expected.
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +22ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +2ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigHostModule dependencies initialized[39m[38;5;3m +2ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mMcpModule dependencies initialized[39m[38;5;3m +5ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +0ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAgentModule dependencies initialized[39m[38;5;3m +91ms[39m
+backend-1  | (node:1) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+backend-1  | (Use `node --trace-deprecation ...` to show where the warning was created)
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmCoreModule dependencies initialized[39m[38;5;3m +146ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +1ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConversationModule dependencies initialized[39m[38;5;3m +0ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mConversationController {/conversation}:[39m[38;5;3m +6ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/conversation, POST} route[39m[38;5;3m +4ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/conversation, GET} route[39m[38;5;3m +1ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/conversation/:id, GET} route[39m[38;5;3m +1ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/conversation/:id, PUT} route[39m[38;5;3m +0ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/conversation/:id, DELETE} route[39m[38;5;3m +1ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/conversation/:id/history, GET} route[39m[38;5;3m +0ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/conversation/stream, POST} route[39m[38;5;3m +0ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mMcpController {/mcp}:[39m[38;5;3m +1ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/mcp/test, POST} route[39m[38;5;3m +0ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:30:57 AM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +3ms[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:31:07 AM [32m    LOG[39m [38;5;3m[SandboxService] [39m[32m[sandbox] Skills copied to /app/workspaces/7f01ad0b-7919-45c6-9f1f-27ad9a29e4c8/skills[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:31:07 AM [32m    LOG[39m [38;5;3m[SandboxService] [39m[32m[sandbox] Created local backend for conversation 7f01ad0b-7919-45c6-9f1f-27ad9a29e4c8 at /app/workspaces/7f01ad0b-7919-45c6-9f1f-27ad9a29e4c8[39m
+backend-1  | [32m[Nest] 1  - [39m04/02/2026, 9:32:54 AM [32m    LOG[39m [38;5;3m[ConversationController] [39m[32m[stream] Done (106288ms)[39m

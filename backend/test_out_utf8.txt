@@ -1,0 +1,26 @@
+﻿
+--- CHUNK (size: 742) ---
+event: custom
+data: {"conversationId":"dfb413d2-6613-42a6-bd70-fa8b7a8ed180"}
+
+event: values
+data: {"messages":[{"content":"Hello, what can you do?","id":"122fc61a-1b0a-4c95-9340-82e2818cae56","additional_kwargs":{},"response_metadata":{},"type":"human"}],"todos":[],"files":{},"skillsMetadata":[]}
+
+event: values
+data: {"messages":[{"content":"Hello, what can you do?","id":"122fc61a-1b0a-4c95-9340-82e2818cae56","additional_kwargs":{},"response_metadata":{},"type":"human"}],"todos":[],"files":{},"skillsMetadata":[]}
+
+event: values
+data: {"messages":[{"content":"Hello, what can you do?","id":"122fc61a-1b0a-4c95-9340-82e2818cae56","additional_kwargs":{},"response_metadata":{},"type":"human"}],"todos":[],"files":{},"skillsMetadata":[]}
+
+
+
+--- CHUNK (size: 2928) ---
+event: values
+data: {"messages":[{"content":"Hello, what can you do?","id":"122fc61a-1b0a-4c95-9340-82e2818cae56","additional_kwargs":{},"response_metadata":{},"type":"human"}],"todos":[],"files":{},"skillsMetadata":[{"name":"business-intelligence","description":"Use this skill when the user asks to analyze data, create reports, build dashboards, generate charts, calculate KPIs, or perform any business intelligence task. Covers data analysis, visualization, metric calculation, and insight generation.","path":"/skills/business-intelligence/SKILL.md","metadata":{},"license":null,"compatibility":null,"allowedTools":[]},{"name":"file-organizer","description":"Intelligently organizes your files and folders across your computer by understanding context, finding duplicates, suggesting better structures, and automating cleanup tasks. Reduces cognitive load and keeps your digital workspace tidy without manual effort.","path":"/skills/file-organizer/SKILL.md","metadata":{},"license":null,"compatibility":null,"allowedTools":[]},{"name":"frontend-design","description":"Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, artifacts, posters, or applications (examples include websites, landing pages, dashboards, React components, HTML/CSS layouts, or when styling/beautifying any web UI). Generates creative, polished code and UI design that avoids generic AI aesthetics.","path":"/skills/frontend-design/SKILL.md","metadata":{},"license":"Complete terms in LICENSE.txt","compatibility":null,"allowedTools":[]},{"name":"jsx-component","description":"Use this skill when the user asks to create, build, or generate a React/JSX UI component. Covers component architecture, styling with Tailwind CSS, accessibility, responsive design, and interactive patterns. Outputs production-ready TSX code.","path":"/skills/jsx-component/SKILL.md","metadata":{},"license":null,"compatibility":null,"allowedTools":[]},{"name":"skill-creator","description":"Guide for creating effective skills that extend agent capabilities with specialized knowledge, workflows, or tool integrations. Use this skill when the user asks to: create a skill, make a skill, build a skill, set up a skill, initialize a skill, scaffold a skill, update or modify an existing skill, validate a skill, learn about skill structure, understand how skills work, or get guidance on skill design patterns.","path":"/skills/skill-creator/SKILL.md","metadata":{},"license":null,"compatibility":null,"allowedTools":[]},{"name":"web-research","description":"Use this skill for requests related to web research; it provides a structured approach to conducting comprehensive web research","path":"/skills/web-research/SKILL.md","metadata":{},"license":null,"compatibility":null,"allowedTools":[]}]}
+
+event: error
+data: {"error":"Error","message":"Anthropic API key not found"}
+
+
+
+--- STREAM DONE ---

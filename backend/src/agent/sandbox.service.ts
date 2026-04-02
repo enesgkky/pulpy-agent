@@ -39,7 +39,7 @@ export class SandboxService implements OnModuleDestroy {
       return existing.backend;
     }
 
-    const rootDir = join(WORKSPACES_DIR, conversationId);
+    const rootDir = await this.getWorkspaceDir(conversationId);
 
     for (let attempt = 1; attempt <= SANDBOX_MAX_RETRIES; attempt++) {
       try {
@@ -89,6 +89,18 @@ export class SandboxService implements OnModuleDestroy {
 
     // TypeScript: unreachable but satisfies return type
     throw new Error('Sandbox oluşturulamadı');
+  }
+
+  async getWorkspaceDir(conversationId: string): Promise<string> {
+    const rootDir = join(WORKSPACES_DIR, conversationId);
+    if (!existsSync(rootDir)) {
+      await mkdir(rootDir, { recursive: true });
+    }
+    const existing = this.backends.get(conversationId);
+    if (existing) {
+      existing.lastUsedAt = Date.now();
+    }
+    return rootDir;
   }
 
   async remove(conversationId: string): Promise<void> {
