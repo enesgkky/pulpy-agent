@@ -16,6 +16,8 @@ const WORKSPACES_DIR = join(process.cwd(), 'workspaces');
 
 const WORKSPACE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const CLEANUP_INTERVAL_MS = 60 * 1000; // check every minute
+const SANDBOX_MAX_RETRIES = 3;
+const SANDBOX_RETRY_DELAY_MS = 1000;
 
 @Injectable()
 export class SandboxService implements OnModuleDestroy {
@@ -39,33 +41,54 @@ export class SandboxService implements OnModuleDestroy {
 
     const rootDir = await this.getWorkspaceDir(conversationId);
 
-    // Copy skills into the workspace
-    if (existsSync(SKILLS_DIR)) {
-      const skillsDest = join(rootDir, 'skills');
-      await cp(SKILLS_DIR, skillsDest, { recursive: true });
-      this.logger.log(`[sandbox] Skills copied to ${skillsDest}`);
+    for (let attempt = 1; attempt <= SANDBOX_MAX_RETRIES; attempt++) {
+      try {
+        await mkdir(rootDir, { recursive: true });
+
+        // Copy skills into the workspace
+        if (existsSync(SKILLS_DIR)) {
+          const skillsDest = join(rootDir, 'skills');
+          await cp(SKILLS_DIR, skillsDest, { recursive: true });
+          this.logger.log(`[sandbox] Skills copied to ${skillsDest}`);
+        }
+
+        const backend = await LocalShellBackend.create({
+          rootDir,
+          virtualMode: true,
+          inheritEnv: true,
+          timeout: 120,
+          maxOutputBytes: 200_000,
+        });
+
+        this.backends.set(conversationId, {
+          backend,
+          rootDir,
+          createdAt: Date.now(),
+          lastUsedAt: Date.now(),
+        });
+
+        this.logger.log(
+          `[sandbox] Created local backend for conversation ${conversationId} at ${rootDir}`,
+        );
+
+        return backend;
+      } catch (err: any) {
+        if (attempt < SANDBOX_MAX_RETRIES) {
+          this.logger.warn(
+            `[sandbox] Backend oluşturma hatası (deneme ${attempt}/${SANDBOX_MAX_RETRIES}): ${err?.message} — tekrar deneniyor`,
+          );
+          await new Promise((r) => setTimeout(r, SANDBOX_RETRY_DELAY_MS));
+        } else {
+          this.logger.error(
+            `[sandbox] Backend oluşturulamadı (${SANDBOX_MAX_RETRIES} deneme başarısız): ${err?.message}`,
+          );
+          throw err;
+        }
+      }
     }
 
-    const backend = await LocalShellBackend.create({
-      rootDir,
-      virtualMode: true,
-      inheritEnv: true,
-      timeout: 120,
-      maxOutputBytes: 200_000,
-    });
-
-    this.backends.set(conversationId, {
-      backend,
-      rootDir,
-      createdAt: Date.now(),
-      lastUsedAt: Date.now(),
-    });
-
-    this.logger.log(
-      `[sandbox] Created local backend for conversation ${conversationId} at ${rootDir}`,
-    );
-
-    return backend;
+    // TypeScript: unreachable but satisfies return type
+    throw new Error('Sandbox oluşturulamadı');
   }
 
   async getWorkspaceDir(conversationId: string): Promise<string> {
@@ -116,6 +139,6 @@ export class SandboxService implements OnModuleDestroy {
     this.logger.log(
       `[sandbox] Shutting down ${ids.length} active backends`,
     );
-    await Promise.all(ids.map((id) => this.remove(id)));
+    await Promise.allSettled(ids.map((id) => this.remove(id)));
   }
 }

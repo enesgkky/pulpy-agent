@@ -27,6 +27,9 @@ function wrapToolWithErrorHandling(tool: StructuredTool): StructuredTool {
   });
 }
 
+const MCP_MAX_RETRIES = 3;
+const MCP_RETRY_DELAY_MS = 2000;
+
 export async function getMcpTools(
   servers: { name: string; url: string }[],
 ): Promise<StructuredTool[]> {
@@ -41,19 +44,28 @@ export async function getMcpTools(
     config[s.name] = { transport: 'sse', url: s.url };
   }
 
-  try {
-    const client = new MultiServerMCPClient(config);
-    const tools = await client.getTools();
-    logger.log(`MCP araçları yüklendi: ${tools.length} araç — [${tools.map((t) => t.name).join(', ')}]`);
-    for (const tool of tools) {
-      const schema = tool.schema;
-      if (schema) {
-        logger.debug(`Tool şeması [${tool.name}]: ${JSON.stringify(schema)}`);
+  for (let attempt = 1; attempt <= MCP_MAX_RETRIES; attempt++) {
+    try {
+      const client = new MultiServerMCPClient(config);
+      const tools = await client.getTools();
+      logger.log(`MCP araçları yüklendi: ${tools.length} araç — [${tools.map((t) => t.name).join(', ')}]`);
+      for (const tool of tools) {
+        const schema = tool.schema;
+        if (schema) {
+          logger.debug(`Tool şeması [${tool.name}]: ${JSON.stringify(schema)}`);
+        }
+      }
+      return tools.map(wrapToolWithErrorHandling);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : error;
+      if (attempt < MCP_MAX_RETRIES) {
+        logger.warn(`MCP bağlantı hatası (deneme ${attempt}/${MCP_MAX_RETRIES}): ${msg} — ${MCP_RETRY_DELAY_MS}ms sonra tekrar denenecek`);
+        await new Promise((r) => setTimeout(r, MCP_RETRY_DELAY_MS));
+      } else {
+        logger.error(`MCP bağlantı hatası (${MCP_MAX_RETRIES} deneme başarısız): ${msg}`);
       }
     }
-    return tools.map(wrapToolWithErrorHandling);
-  } catch (error) {
-    logger.error(`MCP bağlantı hatası: ${error instanceof Error ? error.message : error}`);
-    return [];
   }
+
+  return [];
 }
