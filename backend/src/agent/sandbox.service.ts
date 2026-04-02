@@ -37,8 +37,7 @@ export class SandboxService implements OnModuleDestroy {
       return existing.backend;
     }
 
-    const rootDir = join(WORKSPACES_DIR, conversationId);
-    await mkdir(rootDir, { recursive: true });
+    const rootDir = await this.getWorkspaceDir(conversationId);
 
     // Copy skills into the workspace
     if (existsSync(SKILLS_DIR)) {
@@ -67,6 +66,18 @@ export class SandboxService implements OnModuleDestroy {
     );
 
     return backend;
+  }
+
+  async getWorkspaceDir(conversationId: string): Promise<string> {
+    const rootDir = join(WORKSPACES_DIR, conversationId);
+    if (!existsSync(rootDir)) {
+      await mkdir(rootDir, { recursive: true });
+    }
+    const existing = this.backends.get(conversationId);
+    if (existing) {
+      existing.lastUsedAt = Date.now();
+    }
+    return rootDir;
   }
 
   async remove(conversationId: string): Promise<void> {

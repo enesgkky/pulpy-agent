@@ -1,6 +1,7 @@
 ---
 name: jsx-component
-description: "Use this skill when the user asks to create, build, or generate a React/JSX UI component. Covers component architecture, styling with Tailwind CSS, accessibility, responsive design, and interactive patterns. Outputs production-ready TSX code."
+description: >
+  Use this skill when the user asks to create, build, or generate a React/JSX UI component. Covers component architecture, styling with Tailwind CSS, accessibility, responsive design, and interactive patterns. Outputs production-ready TSX code.
 ---
 
 # JSX Component Builder
