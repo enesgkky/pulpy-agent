@@ -14,10 +14,8 @@ import {
   UploadedFiles,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
 import { mkdirSync, existsSync } from 'fs';
-import { join, extname } from 'path';
-import { randomUUID } from 'crypto';
+import { join } from 'path';
 import type { Response } from 'express';
 import { ConversationService } from './conversation.service';
 import { AgentService } from '../agent/agent.service';
@@ -97,6 +95,37 @@ export class ConversationController {
     return { filename: file.originalname, size: file.size };
   }
 
+  // ─── Artifact Serving ────────────────────────────────────
+
+  @Get(':id/artifacts')
+  async listArtifacts(@Param('id') id: string) {
+    const workspaceDir = await this.sandboxService.getWorkspaceDir(id);
+    const artifactsDir = join(workspaceDir, 'artifacts');
+    if (!existsSync(artifactsDir)) return [];
+    const { readdirSync } = require('fs');
+    const files: string[] = readdirSync(artifactsDir);
+    return files
+      .filter((f: string) => f.endsWith('.html') || f.endsWith('.htm') || f.endsWith('.md'))
+      .map((f: string) => ({ filename: f }));
+  }
+
+  @Get(':id/artifacts/:filename')
+  async getArtifact(
+    @Param('id') id: string,
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    const workspaceDir = await this.sandboxService.getWorkspaceDir(id);
+    const filePath = join(workspaceDir, 'artifacts', filename);
+    if (!existsSync(filePath)) {
+      res.status(404).json({ error: 'Artifact not found' });
+      return;
+    }
+    const contentType = filename.endsWith('.md') ? 'text/markdown; charset=utf-8' : 'text/html; charset=utf-8';
+    res.setHeader('Content-Type', contentType);
+    res.sendFile(filePath);
+  }
+
   // ─── Message History ──────────────────────────────────────
 
   @Get(':id/history')
@@ -104,28 +133,24 @@ export class ConversationController {
     return this.conversationService.findHistory(id);
   }
 
-  // ─── File Upload ─────────────────────────────────────────
+  // ─── Multi File Upload (buffer → temp with original names) ──
 
   @Post('upload')
-  @UseInterceptors(
-    FilesInterceptor('files', 10, {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-        filename: (_req, file, cb) => {
-          const uniqueName = `${randomUUID()}${extname(file.originalname)}`;
-          cb(null, uniqueName);
-        },
-      }),
-      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
-    }),
-  )
+  @UseInterceptors(FilesInterceptor('files', 10))
   async uploadFiles(@UploadedFiles() files: Express.Multer.File[]) {
-    return files.map((f) => ({
-      filename: f.filename,
-      originalName: f.originalname.normalize('NFC'),
-      path: f.path,
-      size: f.size,
-    }));
+    const results: { filename: string; originalName: string; path: string; size: number }[] = [];
+    for (const file of files) {
+      const originalName = file.originalname.normalize('NFC');
+      const dest = join(UPLOADS_DIR, `${Date.now()}-${originalName}`);
+      await writeFile(dest, file.buffer);
+      results.push({
+        filename: originalName,
+        originalName,
+        path: dest,
+        size: file.size,
+      });
+    }
+    return results;
   }
 
   // ─── Streaming ────────────────────────────────────────────
@@ -134,6 +159,7 @@ export class ConversationController {
   @Header('Content-Type', 'text/event-stream')
   @Header('Cache-Control', 'no-cache')
   @Header('Connection', 'keep-alive')
+  @Header('X-Accel-Buffering', 'no')
   async streamMessage(@Body() dto: SendMessageDto, @Res() res: Response) {
     const startTime = Date.now();
 
@@ -161,10 +187,6 @@ export class ConversationController {
       ? await getMcpTools(dto.mcpServers)
       : [];
 
-    this.logger.log(
-      `Test After Mcp code`,
-    );
-
     const agentOptions = {
       service: dto.service,
       apiKey: dto.apiKey,
@@ -175,104 +197,109 @@ export class ConversationController {
       uploadedFiles: uploadedFiles.length ? uploadedFiles : undefined,
     };
 
-    this.logger.log(
-      `Test After Agent Options code`,
-    );
-
     // Send conversationId as custom SSE event
     res.write(
       `event: custom\ndata: ${JSON.stringify({ conversationId: conversation.id })}\n\n`,
     );
 
-    this.logger.log(
-      `Test Before Stream code`,
-    );
+    // Detect client disconnect
+    let clientDisconnected = false;
+    res.on('close', () => {
+      clientDisconnected = true;
+      this.logger.log(`[stream] Client disconnected for conversation ${conversation.id}`);
+    });
 
-    const { stream: sseStream } = await this.agentService.getEncodedStream(
-      history,
-      agentOptions,
-    );
-
-    this.logger.log(
-      `Test After Stream code`,
-    );
-
-    const decoder = new TextDecoder();
-    let sseBuffer = '';
-    let lastAssistantContent = '';
-
-    this.logger.log(
-      `Test Before Try code`,
-    );
-
+    let sseStream: AsyncIterable<any>;
     try {
-      this.logger.log('Test Entered try block, waiting for first chunk');
-      let chunkCount = 0;
-      for await (const chunk of sseStream) {
-        chunkCount++;
-        this.logger.log(`Test Received chunk #${chunkCount}, type: ${typeof chunk}, isBuffer: ${Buffer.isBuffer(chunk)}`);
-        
-        try {
-          const bufferChunk = Buffer.from(chunk);
-          this.logger.log(`Test Buffered chunk #${chunkCount}, byteLength: ${bufferChunk.byteLength}`);
-          const writeResult = res.write(bufferChunk);
-          this.logger.log(`Test res.write returned: ${writeResult}`);
-          if (typeof (res as any).flush === 'function') {
-            (res as any).flush();
-            this.logger.log(`Test Called res.flush()`);
-          }
-        } catch (bufErr: any) {
-          this.logger.error(`Test Error writing chunk #${chunkCount}: ${bufErr?.message}`, bufErr?.stack);
-        }
-
-        sseBuffer += decoder.decode(chunk, { stream: true });
-        const events = sseBuffer.split('\n\n');
-        this.logger.log(`Test Chunk #${chunkCount} yielded ${events.length} potential events`);
-        sseBuffer = events.pop() || '';
-
-        for (const block of events) {
-          if (!block.trim()) continue;
-          const dataMatch = block.match(/^data:\s*(.+)$/m);
-          if (!dataMatch?.[1]) continue;
-
-          try {
-            const data = JSON.parse(dataMatch[1]);
-            if (Array.isArray(data?.messages) && data.messages.length > 0) {
-              const last = data.messages[data.messages.length - 1];
-              if (last.type === 'ai') {
-                const text = extractTextContent(last.content);
-                if (text) {
-                  lastAssistantContent = text;
-                  this.logger.log(`Test parsed AI text content (length: ${text.length})`);
-                }
-              }
-            }
-          } catch (parseErr: any) {
-            this.logger.warn(`Test Failed to parse data block: ${parseErr?.message}`);
-          }
-        }
-        this.logger.log(`Test Finished processing chunk #${chunkCount}`);
-      }
-      this.logger.log(`Test Exited for-await loop. Total chunks: ${chunkCount}`);
-    } catch (streamError: any) {
-      this.logger.error(`Test [stream] Error caught during iteration: ${streamError?.message}`, streamError?.stack);
+      const result = await this.agentService.getEncodedStream(
+        history,
+        agentOptions,
+      );
+      sseStream = result.stream;
+    } catch (initError: any) {
+      this.logger.error(`[stream] Failed to create agent stream: ${initError?.message}`);
       try {
         res.write(
-          `event: error\ndata: ${JSON.stringify({ error: streamError?.message })}\n\n`,
+          `event: error\ndata: ${JSON.stringify({ error: 'Stream baslatilamadi. Lutfen tekrar deneyin.' })}\n\n`,
         );
-      } catch {
-        // response closed
+      } catch { /* response closed */ }
+      res.end();
+      return;
+    }
+
+    // Collect raw SSE data for post-stream content extraction
+    const rawChunks: Buffer[] = [];
+    let lastAssistantContent = '';
+
+    // Disable socket buffering for real-time streaming
+    if (res.socket) {
+      res.socket.setNoDelay(true);
+    }
+
+    try {
+      for await (const chunk of sseStream) {
+        if (clientDisconnected) break;
+
+        try {
+          const bufferChunk = Buffer.from(chunk);
+          rawChunks.push(bufferChunk);
+          const ok = res.write(bufferChunk);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+          if (!ok) {
+            await new Promise<void>((resolve) => res.once('drain', resolve));
+          }
+        } catch {
+          break;
+        }
+      }
+    } catch (streamError: any) {
+      this.logger.error(`[stream] Error during iteration: ${streamError?.message}`, streamError?.stack);
+      if (!clientDisconnected) {
+        try {
+          res.write(
+            `event: error\ndata: ${JSON.stringify({ error: streamError?.message || 'Beklenmedik bir hata olustu.' })}\n\n`,
+          );
+        } catch { /* response closed */ }
       }
     }
+
+    // Extract last assistant content AFTER streaming (not during — avoids blocking)
+    try {
+      const fullSse = Buffer.concat(rawChunks).toString('utf-8');
+      const events = fullSse.split('\n\n');
+      for (let i = events.length - 1; i >= 0; i--) {
+        const block = events[i].trim();
+        if (!block) continue;
+        const dataMatch = block.match(/^data:\s*(.+)$/m);
+        if (!dataMatch?.[1]) continue;
+        try {
+          const data = JSON.parse(dataMatch[1]);
+          if (Array.isArray(data?.messages) && data.messages.length > 0) {
+            const last = data.messages[data.messages.length - 1];
+            if (last.type === 'ai') {
+              const text = extractTextContent(last.content);
+              if (text) {
+                lastAssistantContent = text;
+                break; // Found the last AI message
+              }
+            }
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* extraction failed — non-critical */ }
 
     if (lastAssistantContent) {
       await this.conversationService.saveAssistantMessage(
         conversation.id,
         lastAssistantContent,
-      );
+      ).catch((err) => {
+        this.logger.warn(`[stream] Failed to save assistant message: ${err?.message}`);
+      });
     }
 
     this.logger.log(`[stream] Done (${Date.now() - startTime}ms)`);
-    res.end();
+    if (!clientDisconnected) res.end();
   }
 }

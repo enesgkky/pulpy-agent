@@ -61,8 +61,8 @@ export class SandboxService implements OnModuleDestroy {
           rootDir,
           virtualMode: true,
           inheritEnv: true,
-          timeout: 120,
-          maxOutputBytes: 200_000,
+          timeout: 600,
+          maxOutputBytes: 2_000_000,
         });
 
         this.backends.set(conversationId, {
@@ -124,7 +124,7 @@ export class SandboxService implements OnModuleDestroy {
       const safeName = sanitizeFilename(file.originalName);
       const dest = join(uploadsDir, safeName);
       await copyFile(file.path, dest);
-      workspacePaths.push(`/uploads/${safeName}`);
+      workspacePaths.push(safeName);
       this.logger.log(
         `[sandbox] Copied ${safeName} to workspace ${conversationId}`,
       );

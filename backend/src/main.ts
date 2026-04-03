@@ -11,6 +11,10 @@ async function bootstrap() {
   }
 
   const port = configService.get<number>('PORT', 4000);
-  await app.listen(port);
+  const server = await app.listen(port);
+
+  // Increase timeouts for long-running agent streams
+  server.setTimeout(600_000);       // 10 minutes
+  server.keepAliveTimeout = 620_000; // slightly above setTimeout
 }
 bootstrap();

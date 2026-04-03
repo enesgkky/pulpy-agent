@@ -13,7 +13,7 @@ export interface McpTestResult {
 export class McpService {
   async testConnection(url: string): Promise<McpTestResult> {
     const abortController = new AbortController();
-    const timeout = setTimeout(() => abortController.abort(), 30_000);
+    const timeout = setTimeout(() => abortController.abort(), 120_000);
 
     let client: Client | undefined;
 

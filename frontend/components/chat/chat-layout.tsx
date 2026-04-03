@@ -8,7 +8,8 @@ import type { Message } from "@langchain/langgraph-sdk"
 import { useStickToBottomContext } from "use-stick-to-bottom"
 import { BASE_URL, fetchConversation, type UploadedFile } from "@/lib/api"
 import { loadSettings } from "./settings-dialog"
-import { ChatMessages } from "./chat-messages"
+import { ChatMessages, type ArtifactInfo } from "./chat-messages"
+import { ArtifactPanel } from "./artifact-panel"
 import { ChatInput } from "./chat-input"
 import { ChatSidebar } from "./chat-sidebar"
 import { toast } from "sonner"
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/chat-container"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { Button } from "@/components/ui/button"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -65,10 +67,20 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
   const [history, setHistory] = useState<Message[]>([])
   const [inputAreaEl, setInputAreaEl] = useState<HTMLElement | null>(null)
   const prevMessagesRef = useRef<Message[]>([])
+  const [activeArtifact, setActiveArtifact] = useState<{ url: string; title: string } | null>(null)
+  const [savedArtifacts, setSavedArtifacts] = useState<ArtifactInfo[]>([])
+  const lastOpenedArtifactRef = useRef<string | null>(null)
+  const humanCountRef = useRef(0)
+  const filesByHumanIndexRef = useRef<Map<number, UploadedFile[]>>(new Map())
 
   useEffect(() => {
+    // Reset all state when conversation changes
+    setActiveArtifact(null)
+    lastOpenedArtifactRef.current = null
+
     if (!initialConvId) {
       setHistory([])
+      setSavedArtifacts([])
       return
     }
     fetchConversation(initialConvId)
@@ -81,6 +93,14 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
         setHistory(msgs)
       })
       .catch(() => setHistory([]))
+
+    // Load saved artifacts for this conversation
+    fetch(`${BASE_URL}/conversation/${initialConvId}/artifacts`)
+      .then((r) => r.json())
+      .then((list: { filename: string }[]) => {
+        setSavedArtifacts(list.map((a) => ({ filename: a.filename, path: `artifacts/${a.filename}` })))
+      })
+      .catch(() => setSavedArtifacts([]))
   }, [initialConvId])
 
   // Pending files ref — set before submit, consumed by transport
@@ -166,14 +186,94 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
     return prevMessagesRef.current
   }, [history, thread.messages])
 
-  const handleSubmit = useCallback(
-    (text: string, files?: UploadedFile[]) => { if (files?.length) { pendingFilesRef.current = files
+  // Auto-open artifact: detect from tool calls OR poll after streaming ends
+  const prevIsLoadingRef = useRef(false)
+
+  // Method 1: Detect artifact from tool calls in real-time
+  useEffect(() => {
+    const id = convIdRef.current
+    if (!id) return
+
+    const openArtifact = (filename: string) => {
+      if (filename && filename !== lastOpenedArtifactRef.current) {
+        lastOpenedArtifactRef.current = filename
+        setActiveArtifact({
+          url: `${BASE_URL}/conversation/${id}/artifacts/${filename}`,
+          title: filename,
+        })
       }
+    }
+
+    for (const msg of displayMessages) {
+      if (msg.type !== "ai") continue
+      const aiMsg = msg as any
+
+      // Only check fully parsed tool_calls (not chunks/invalid — those fire too early)
+      const calls = (aiMsg.tool_calls ?? []) as { name: string; args: Record<string, any> }[]
+      for (const call of calls) {
+        const filePath = call.args?.file_path || call.args?.path || ""
+        if (
+          call.name === "write_file" &&
+          typeof filePath === "string" &&
+          (filePath.startsWith("artifacts/") || filePath.includes("/artifacts/"))
+        ) {
+          openArtifact(filePath.split("/").pop() || filePath)
+        }
+      }
+    }
+  }, [displayMessages])
+
+  // Method 2: Fallback — check artifacts endpoint when streaming finishes
+  useEffect(() => {
+    const wasLoading = prevIsLoadingRef.current
+    prevIsLoadingRef.current = thread.isLoading
+    if (wasLoading && !thread.isLoading) {
+      const id = convIdRef.current
+      if (!id) return
+      fetch(`${BASE_URL}/conversation/${id}/artifacts`)
+        .then((r) => r.json())
+        .then((artifacts: { filename: string }[]) => {
+          // Update savedArtifacts for persistent cards
+          setSavedArtifacts(artifacts.map((a) => ({ filename: a.filename, path: `artifacts/${a.filename}` })))
+          if (artifacts.length > 0) {
+            const latest = artifacts[artifacts.length - 1]
+            if (latest.filename !== lastOpenedArtifactRef.current) {
+              lastOpenedArtifactRef.current = latest.filename
+              setActiveArtifact({
+                url: `${BASE_URL}/conversation/${id}/artifacts/${latest.filename}`,
+                title: latest.filename,
+              })
+            }
+          }
+        })
+        .catch(() => {})
+    }
+  }, [thread.isLoading])
+
+  const handleSubmit = useCallback(
+    (text: string, files?: UploadedFile[]) => {
+      if (files?.length) {
+        pendingFilesRef.current = files
+        filesByHumanIndexRef.current.set(humanCountRef.current, files)
+      }
+      humanCountRef.current++
       thread.submit({
         messages: [{ type: "human", content: text }],
       } as any)
     },
     [thread],
+  )
+
+  const handleOpenArtifact = useCallback(
+    (artifact: ArtifactInfo) => {
+      const id = convIdRef.current
+      if (!id) return
+      setActiveArtifact({
+        url: `${BASE_URL}/conversation/${id}/artifacts/${artifact.filename}`,
+        title: artifact.filename,
+      })
+    },
+    [],
   )
 
   const handleStop = () => {
@@ -195,32 +295,52 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
           </div>
         </header>
 
-        <ChatContainerRoot className="min-h-0 flex-1">
-          <ChatContainerContent className="mx-auto max-w-4xl gap-4 p-4">
-            <ChatMessages
-              messages={displayMessages}
-              isLoading={thread.isLoading}
-            />
-            <ChatContainerScrollAnchor />
-          </ChatContainerContent>
+        <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+          <ResizablePanel defaultSize={activeArtifact ? 50 : 100} minSize={30}>
+            <div className="flex h-full flex-col">
+              <ChatContainerRoot className="min-h-0 flex-1">
+                <ChatContainerContent className="mx-auto max-w-4xl gap-4 p-4">
+                  <ChatMessages
+                    messages={displayMessages}
+                    isLoading={thread.isLoading}
+                    filesByHumanIndex={filesByHumanIndexRef.current}
+                    savedArtifacts={savedArtifacts}
+                    onOpenArtifact={handleOpenArtifact}
+                  />
+                  <ChatContainerScrollAnchor />
+                </ChatContainerContent>
 
-          {/* Lives inside StickToBottom (context access), portals into input area */}
-          <ScrollButtonPortal container={inputAreaEl} />
-        </ChatContainerRoot>
+                <ScrollButtonPortal container={inputAreaEl} />
+              </ChatContainerRoot>
 
-        <div
-          ref={setInputAreaEl}
-          className="relative shrink-0 border-t p-4"
-        >
-          <div className="mx-auto flex max-w-4xl justify-center">
-            <ChatInput
-              onSubmit={handleSubmit}
-              onStop={handleStop}
+              <div
+                ref={setInputAreaEl}
+                className="relative shrink-0 border-t p-4"
+              >
+                <div className="mx-auto flex max-w-4xl justify-center">
+                  <ChatInput
+                    onSubmit={handleSubmit}
+                    onStop={handleStop}
+                    isLoading={thread.isLoading}
+                  />
+                </div>
+              </div>
+            </div>
+          </ResizablePanel>
 
-              isLoading={thread.isLoading}
-            />
-          </div>
-        </div>
+          {activeArtifact && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={50} minSize={25}>
+                <ArtifactPanel
+                  url={activeArtifact.url}
+                  title={activeArtifact.title}
+                  onClose={() => setActiveArtifact(null)}
+                />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
       </SidebarInset>
     </SidebarProvider>
   )

@@ -20,13 +20,26 @@ import {
   Circle,
   CircleDot,
   FileText,
+  FileSpreadsheet,
+  FileCode,
+  File,
   Loader2,
   ListTodo,
+  Eye,
 } from "lucide-react"
+import type { UploadedFile } from "@/lib/api"
+
+export interface ArtifactInfo {
+  filename: string
+  path: string
+}
 
 interface ChatMessagesProps {
   messages: Message[]
   isLoading: boolean
+  filesByHumanIndex?: Map<number, UploadedFile[]>
+  savedArtifacts?: ArtifactInfo[]
+  onOpenArtifact?: (artifact: ArtifactInfo) => void
 }
 
 /* ── types ───────────────────────────────────────── */
@@ -40,6 +53,43 @@ interface ToolCall {
 interface TodoItem {
   content: string
   status: "pending" | "in_progress" | "completed"
+}
+
+/* ── file icon helper ────────────────────────────── */
+
+function getFileIcon(name: string) {
+  const ext = name.split(".").pop()?.toLowerCase() ?? ""
+  if (["xlsx", "xls", "xlsm", "csv", "tsv"].includes(ext))
+    return <FileSpreadsheet className="h-4 w-4 shrink-0 text-green-600" />
+  if (ext === "pdf")
+    return <FileText className="h-4 w-4 shrink-0 text-red-600" />
+  if (["sql", "json", "xml", "html", "htm"].includes(ext))
+    return <FileCode className="h-4 w-4 shrink-0 text-blue-600" />
+  return <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+}
+
+/* ── artifact extraction ─────────────────────────── */
+
+function extractArtifacts(messages: Message[]): ArtifactInfo[] {
+  const artifacts: ArtifactInfo[] = []
+  const seen = new Set<string>()
+  for (const msg of messages) {
+    if (msg.type !== "ai") continue
+    const calls = ((msg as any).tool_calls ?? []) as ToolCall[]
+    for (const call of calls) {
+      if (call.name === "write_file" && typeof call.args?.path === "string") {
+        const path: string = call.args.path
+        if (path.startsWith("artifacts/") || path.includes("/artifacts/")) {
+          const filename = path.split("/").pop() || path
+          if (!seen.has(filename)) {
+            seen.add(filename)
+            artifacts.push({ filename, path })
+          }
+        }
+      }
+    }
+  }
+  return artifacts
 }
 
 /* ── helpers ─────────────────────────────────────── */
@@ -108,19 +158,30 @@ function getLatestTodos(messages: Message[]): TodoItem[] | null {
   return latest
 }
 
+/** Extract file path from tool call args — deepagents uses file_path */
+function getFilePath(args: Record<string, any>): string {
+  return args.file_path || args.path || ""
+}
+
 /** Generate a human-readable label for a tool call */
 function getToolLabel(call: ToolCall): string {
   const { name, args } = call
   if (name === "read_file") {
-    const path: string = args.path || ""
+    const path = getFilePath(args)
     const skillMatch = path.match(/\/skills\/([^/]+)/)
     if (skillMatch) return `Reading ${skillMatch[1].replace(/-/g, " ")} skill`
     const filename = path.split("/").pop() || "file"
     return `Reading ${filename}`
   }
   if (name === "write_file") {
-    const filename = (args.path || "file").split("/").pop()
+    const path = getFilePath(args)
+    const filename = (path || "file").split("/").pop()
     return `Writing ${filename}`
+  }
+  if (name === "edit_file") {
+    const path = getFilePath(args)
+    const filename = (path || "file").split("/").pop()
+    return `Editing ${filename}`
   }
   if (name === "execute_shell" || name === "shell") {
     const cmd: string = args.command || ""
@@ -128,7 +189,7 @@ function getToolLabel(call: ToolCall): string {
     return short ? `Running: ${short}` : "Running command"
   }
   if (name === "ls") {
-    const path: string = args.path || ""
+    const path: string = args.path || args.file_path || ""
     const skillMatch = path.match(/\/skills\/([^/]+)/)
     if (skillMatch) return `Browsing ${skillMatch[1].replace(/-/g, " ")} skill`
     return `Listing ${path || "files"}`
@@ -388,18 +449,59 @@ function StreamingSpinner() {
 
 /* ── render item types ───────────────────────────── */
 
+/** Small card to show an artifact preview trigger */
+function ArtifactCard({
+  artifact,
+  onOpen,
+}: {
+  artifact: ArtifactInfo
+  onOpen?: (a: ArtifactInfo) => void
+}) {
+  return (
+    <button
+      onClick={() => onOpen?.(artifact)}
+      className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm shadow-sm transition-colors hover:bg-accent/50"
+    >
+      <Eye className="h-4 w-4 shrink-0 text-primary" />
+      <span className="truncate font-medium">{artifact.filename}</span>
+      <span className="text-xs text-muted-foreground ml-auto">Onizle</span>
+    </button>
+  )
+}
+
+/** File attachment list shown on human messages */
+function FileAttachments({ files }: { files: UploadedFile[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-1.5">
+      {files.map((f, i) => (
+        <div
+          key={`${f.originalName}-${i}`}
+          className="flex items-center gap-1.5 rounded-md border bg-primary-foreground/50 px-2 py-1 text-xs"
+        >
+          {getFileIcon(f.originalName)}
+          <span className="max-w-[120px] truncate">{f.originalName}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 type RenderItem =
-  | { kind: "human"; id: string; text: string }
+  | { kind: "human"; id: string; text: string; humanIndex: number }
   | { kind: "ai-text"; id: string; text: string; isFinal: boolean }
   | { kind: "tool-group"; id: string; calls: ToolCall[] }
+  | { kind: "artifact"; id: string; artifact: ArtifactInfo }
 
 function buildRenderItems(messages: Message[]): RenderItem[] {
   const items: RenderItem[] = []
+  let humanIndex = 0
+  const seenArtifacts = new Set<string>()
 
   for (const msg of messages) {
     if (msg.type === "human") {
       const text = getMessageText(msg.content)
-      if (text) items.push({ kind: "human", id: msg.id!, text })
+      if (text) items.push({ kind: "human", id: msg.id!, text, humanIndex })
+      humanIndex++
       continue
     }
     if (msg.type === "tool" || msg.type !== "ai") continue
@@ -409,9 +511,6 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
 
     if (!text && toolCalls.length === 0) continue
 
-    // Only emit text if it's non-empty and not purely accompanying a tool call
-    // (intermediate "thinking" text is OK, but don't let it break consecutive grouping
-    //  when it has no real content)
     if (text && toolCalls.length === 0) {
       items.push({
         kind: "ai-text",
@@ -420,7 +519,6 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
         isFinal: true,
       })
     } else if (text && toolCalls.length > 0) {
-      // Intermediate text before tool call — push it, it will break grouping intentionally
       items.push({
         kind: "ai-text",
         id: `${msg.id}-text`,
@@ -430,6 +528,25 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
     }
 
     for (const call of toolCalls) {
+      // Detect artifact creation (deepagents uses file_path)
+      const writePath = call.name === "write_file" ? getFilePath(call.args) : ""
+      if (
+        call.name === "write_file" &&
+        writePath &&
+        (writePath.startsWith("artifacts/") || writePath.includes("/artifacts/"))
+      ) {
+        const filename = writePath.split("/").pop() || writePath
+        if (!seenArtifacts.has(filename)) {
+          seenArtifacts.add(filename)
+          items.push({
+            kind: "artifact",
+            id: call.id ?? `${msg.id}-artifact-${filename}`,
+            artifact: { filename, path: writePath },
+          })
+        }
+        continue
+      }
+
       const last = items[items.length - 1]
       if (last?.kind === "tool-group" && last.calls[0].name === call.name) {
         last.calls.push(call)
@@ -441,6 +558,7 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
         })
       }
     }
+
   }
 
   return items
@@ -448,17 +566,37 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
 
 /* ── main ────────────────────────────────────────── */
 
-export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+export function ChatMessages({ messages, isLoading, filesByHumanIndex, savedArtifacts, onOpenArtifact }: ChatMessagesProps) {
   const toolResultMap = getToolResultMap(messages)
   const latestTodos = useMemo(() => getLatestTodos(messages), [messages])
   const renderItems = useMemo(() => buildRenderItems(messages), [messages])
+
+  // Merge: show savedArtifacts that aren't already detected from tool calls
+  const detectedArtifactNames = useMemo(() => {
+    const set = new Set<string>()
+    for (const item of renderItems) {
+      if (item.kind === "artifact") set.add(item.artifact.filename)
+    }
+    return set
+  }, [renderItems])
+
+  const extraArtifacts = useMemo(() => {
+    if (!savedArtifacts?.length) return []
+    return savedArtifacts.filter((a) => !detectedArtifactNames.has(a.filename))
+  }, [savedArtifacts, detectedArtifactNames])
 
   return (
     <>
       {renderItems.map((item) => {
         if (item.kind === "human") {
+          const files = filesByHumanIndex?.get(item.humanIndex)
           return (
             <MessageUI key={item.id} className="max-w-2xl px-4 py-2 ml-auto">
+              {files && files.length > 0 && (
+                <div className="flex justify-end mb-1.5">
+                  <FileAttachments files={files} />
+                </div>
+              )}
               <MessageContent className="bg-primary text-primary-foreground rounded-2xl px-4 py-2">
                 {item.text}
               </MessageContent>
@@ -495,8 +633,23 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
           )
         }
 
+        if (item.kind === "artifact") {
+          return (
+            <div key={item.id} className="w-full px-4 mr-auto py-1">
+              <ArtifactCard artifact={item.artifact} onOpen={onOpenArtifact} />
+            </div>
+          )
+        }
+
         return null
       })}
+
+      {/* Saved artifacts (from backend, persists after F5) */}
+      {extraArtifacts.map((a) => (
+        <div key={`saved-${a.filename}`} className="w-full px-4 mr-auto py-1">
+          <ArtifactCard artifact={a} onOpen={onOpenArtifact} />
+        </div>
+      ))}
 
       {/* Todo progress — only while streaming */}
       {isLoading && latestTodos && (
