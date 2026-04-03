@@ -11,6 +11,8 @@ import { loadSettings } from "./settings-dialog"
 import { ChatMessages } from "./chat-messages"
 import { ChatInput } from "./chat-input"
 import { ChatSidebar } from "./chat-sidebar"
+import { ArtifactPanel } from "./artifact-panel"
+import { useArtifact } from "@/hooks/use-artifact"
 import { toast } from "sonner"
 
 const SettingsDialog = dynamic(
@@ -22,6 +24,11 @@ import {
   ChatContainerContent,
   ChatContainerScrollAnchor,
 } from "@/components/ui/chat-container"
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
@@ -65,6 +72,7 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
   const [history, setHistory] = useState<Message[]>([])
   const [inputAreaEl, setInputAreaEl] = useState<HTMLElement | null>(null)
   const prevMessagesRef = useRef<Message[]>([])
+  const artifactCodeRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!initialConvId) {
@@ -125,6 +133,7 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
                 settings.mcpServers?.length
                   ? settings.mcpServers
                   : undefined,
+              previousArtifact: artifactCodeRef.current || undefined,
             }),
           }
         },
@@ -159,9 +168,32 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
     return prevMessagesRef.current
   }, [history, thread.messages])
 
+  // Artifact state management
+  const {
+    artifact,
+    closePanel,
+    setVersion,
+    onRenderSuccess,
+    onRenderError,
+    renderCode,
+  } = useArtifact(displayMessages, thread.isLoading)
+
+  const artifactOpen = artifact.status !== "closed"
+
+  // Keep ref in sync so the memoized transport can read current artifact code
+  useEffect(() => {
+    artifactCodeRef.current = artifact.code
+  }, [artifact.code])
+
   const handleSubmit = (text: string) => {
     thread.submit({
       messages: [{ type: "human", content: text }],
+    } as any)
+  }
+
+  const handleRetry = (message: string) => {
+    thread.submit({
+      messages: [{ type: "human", content: message }],
     } as any)
   }
 
@@ -209,32 +241,61 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
           </div>
         </header>
 
-        <ChatContainerRoot className="min-h-0 flex-1">
-          <ChatContainerContent className="mx-auto max-w-4xl gap-4 p-4">
-            <ChatMessages
-              messages={displayMessages}
-              isLoading={thread.isLoading}
-            />
-            <ChatContainerScrollAnchor />
-          </ChatContainerContent>
-
-          {/* Lives inside StickToBottom (context access), portals into input area */}
-          <ScrollButtonPortal container={inputAreaEl} />
-        </ChatContainerRoot>
-
-        <div
-          ref={setInputAreaEl}
-          className="relative shrink-0 border-t p-4"
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 flex-1"
         >
-          <div className="mx-auto flex max-w-4xl justify-center">
-            <ChatInput
-              onSubmit={handleSubmit}
-              onStop={handleStop}
-              onUpload={handleUpload}
-              isLoading={thread.isLoading}
-            />
-          </div>
-        </div>
+          {/* Chat panel */}
+          <ResizablePanel
+            defaultSize={artifactOpen ? 45 : 100}
+            minSize={30}
+            className="flex flex-col"
+          >
+            <ChatContainerRoot className="min-h-0 flex-1">
+              <ChatContainerContent className="mx-auto max-w-4xl gap-4 p-4">
+                <ChatMessages
+                  messages={displayMessages}
+                  isLoading={thread.isLoading}
+                  onRenderCode={renderCode}
+                />
+                <ChatContainerScrollAnchor />
+              </ChatContainerContent>
+
+              <ScrollButtonPortal container={inputAreaEl} />
+            </ChatContainerRoot>
+
+            <div
+              ref={setInputAreaEl}
+              className="relative shrink-0 border-t p-4"
+            >
+              <div className="mx-auto flex max-w-4xl justify-center">
+                <ChatInput
+                  onSubmit={handleSubmit}
+                  onStop={handleStop}
+                  onUpload={handleUpload}
+                  isLoading={thread.isLoading}
+                />
+              </div>
+            </div>
+          </ResizablePanel>
+
+          {/* Artifact panel — only when open */}
+          {artifactOpen && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={55} minSize={25}>
+                <ArtifactPanel
+                  artifact={artifact}
+                  onClose={closePanel}
+                  onRenderSuccess={onRenderSuccess}
+                  onRenderError={onRenderError}
+                  onSetVersion={setVersion}
+                  onRetry={handleRetry}
+                />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
       </SidebarInset>
     </SidebarProvider>
   )

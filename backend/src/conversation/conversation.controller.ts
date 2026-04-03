@@ -24,6 +24,7 @@ import {
   UpdateConversationDto,
   SendMessageDto,
 } from './dto/send-message.dto';
+import { HumanMessage } from '@langchain/core/messages';
 import { getMcpTools } from '../mcp/mcp-tools.adapter';
 
 function extractTextContent(content: unknown): string {
@@ -111,6 +112,15 @@ export class ConversationController {
 
     const history =
       await this.conversationService.getLangChainHistory(conversation.id);
+
+    // Inject previous dashboard code so the agent can edit instead of rewrite
+    if (dto.previousArtifact) {
+      history.push(
+        new HumanMessage(
+          `[CONTEXT: The current dashboard code is:\n\`\`\`jsx\n${dto.previousArtifact}\n\`\`\`\nIf I ask to modify it, edit this code rather than rewriting from scratch.]`,
+        ),
+      );
+    }
 
     const backend = await this.sandboxService.getOrCreate(conversation.id);
 

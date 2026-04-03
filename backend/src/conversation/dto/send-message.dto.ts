@@ -19,4 +19,5 @@ export class SendMessageDto {
   baseUrl?: string;
   model?: string;
   mcpServers?: McpServerDto[];
+  previousArtifact?: string;
 }
