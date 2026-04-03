@@ -167,7 +167,9 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
   }, [history, thread.messages])
 
   const handleSubmit = useCallback(
-    (text: string, files?: UploadedFile[]) => { if (files?.length) { pendingFilesRef.current = files
+    (text: string, files?: UploadedFile[]) => {
+      if (files?.length) {
+        pendingFilesRef.current = files
       }
       thread.submit({
         messages: [{ type: "human", content: text }],
@@ -216,6 +218,7 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
             <ChatInput
               onSubmit={handleSubmit}
               onStop={handleStop}
+
 
               isLoading={thread.isLoading}
             />
