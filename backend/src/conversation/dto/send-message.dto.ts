@@ -26,5 +26,4 @@ export class SendMessageDto {
   model?: string;
   mcpServers?: McpServerDto[];
   files?: FileReferenceDto[];
-  previousArtifact?: string;
 }

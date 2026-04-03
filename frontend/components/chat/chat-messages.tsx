@@ -22,14 +22,11 @@ import {
   FileText,
   Loader2,
   ListTodo,
-  Play,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 interface ChatMessagesProps {
   messages: Message[]
   isLoading: boolean
-  onRenderCode?: (code: string) => void
 }
 
 /* ── types ───────────────────────────────────────── */
@@ -408,9 +405,7 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
     if (msg.type === "tool" || msg.type !== "ai") continue
 
     const text = getMessageText(msg.content).trim()
-    const toolCalls = getToolCalls(msg).filter(
-      (c) => c.name !== "write_todos" && c.name !== "render_dashboard"
-    )
+    const toolCalls = getToolCalls(msg).filter((c) => c.name !== "write_todos")
 
     if (!text && toolCalls.length === 0) continue
 
@@ -451,18 +446,9 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
   return items
 }
 
-/* ── JSX detection ──────────────────────────────── */
-
-const JSX_BLOCK_REGEX = /```(?:jsx|tsx|react)?\n([\s\S]*?export\s+default\s+function[\s\S]*?)```/
-
-function extractJsxBlock(text: string): string | null {
-  const match = text.match(JSX_BLOCK_REGEX)
-  return match ? match[1].trim() : null
-}
-
 /* ── main ────────────────────────────────────────── */
 
-export function ChatMessages({ messages, isLoading, onRenderCode }: ChatMessagesProps) {
+export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
   const toolResultMap = getToolResultMap(messages)
   const latestTodos = useMemo(() => getLatestTodos(messages), [messages])
   const renderItems = useMemo(() => buildRenderItems(messages), [messages])
@@ -481,7 +467,6 @@ export function ChatMessages({ messages, isLoading, onRenderCode }: ChatMessages
         }
 
         if (item.kind === "ai-text") {
-          const jsxCode = item.isFinal ? extractJsxBlock(item.text) : null
           return (
             <div key={item.id} className="w-full px-4 mr-auto">
               {item.isFinal ? (
@@ -492,17 +477,6 @@ export function ChatMessages({ messages, isLoading, onRenderCode }: ChatMessages
                   >
                     {item.text}
                   </MessageContent>
-                  {jsxCode && onRenderCode && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 gap-1.5"
-                      onClick={() => onRenderCode(jsxCode)}
-                    >
-                      <Play className="h-3 w-3" />
-                      Render Dashboard
-                    </Button>
-                  )}
                 </MessageUI>
               ) : (
                 <p className="pb-1 pt-2 text-[15px] text-foreground/80">
