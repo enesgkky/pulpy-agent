@@ -10,24 +10,18 @@ import {
   Header,
   Logger,
   UseInterceptors,
-<<<<<<< Updated upstream
   UploadedFile,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-=======
   UploadedFiles,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { mkdirSync, existsSync } from 'fs';
 import { join, extname } from 'path';
 import { randomUUID } from 'crypto';
->>>>>>> Stashed changes
 import type { Response } from 'express';
 import { ConversationService } from './conversation.service';
 import { AgentService } from '../agent/agent.service';
 import { SandboxService } from '../agent/sandbox.service';
-import { join } from 'path';
 import { writeFile } from 'fs/promises';
 import {
   CreateConversationDto,
@@ -151,11 +145,6 @@ export class ConversationController {
 
     const backend = await this.sandboxService.getOrCreate(conversation.id);
 
-<<<<<<< Updated upstream
-    this.logger.log(
-      `Test 12345`,
-    );
-=======
     // Copy uploaded files into workspace if provided
     let uploadedFiles: string[] = [];
     if (dto.files?.length) {
@@ -167,7 +156,6 @@ export class ConversationController {
         `[stream] Copied ${uploadedFiles.length} file(s) to workspace`,
       );
     }
->>>>>>> Stashed changes
 
     const mcpTools = dto.mcpServers?.length
       ? await getMcpTools(dto.mcpServers)

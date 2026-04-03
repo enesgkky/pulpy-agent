@@ -6,11 +6,7 @@ import dynamic from "next/dynamic"
 import { useStream, FetchStreamTransport } from "@langchain/langgraph-sdk/react"
 import type { Message } from "@langchain/langgraph-sdk"
 import { useStickToBottomContext } from "use-stick-to-bottom"
-<<<<<<< Updated upstream
-import { BASE_URL, fetchConversation, createConversation, uploadFile } from "@/lib/api"
-=======
 import { BASE_URL, fetchConversation, type UploadedFile } from "@/lib/api"
->>>>>>> Stashed changes
 import { loadSettings } from "./settings-dialog"
 import { ChatMessages } from "./chat-messages"
 import { ChatInput } from "./chat-input"
@@ -91,8 +87,7 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
   const pendingFilesRef = useRef<UploadedFile[] | undefined>(undefined)
 
   // transport is created once — convId is read via ref to avoid recreation on convId change
-  const transport = useMemo(
-    () =>
+  const transport = useMemo( () =>
       new FetchStreamTransport({
         apiUrl: `${BASE_URL}/conversation/stream`,
         onRequest: async (_url, init) => {
@@ -172,9 +167,7 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
   }, [history, thread.messages])
 
   const handleSubmit = useCallback(
-    (text: string, files?: UploadedFile[]) => {
-      if (files?.length) {
-        pendingFilesRef.current = files
+    (text: string, files?: UploadedFile[]) => { if (files?.length) { pendingFilesRef.current = files
       }
       thread.submit({
         messages: [{ type: "human", content: text }],
@@ -185,31 +178,6 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
 
   const handleStop = () => {
     thread.stop()
-  }
-
-  const handleUpload = async (file: File) => {
-    try {
-      let currentId = convIdRef.current
-      if (!currentId) {
-        const conv = await createConversation(file.name)
-        currentId = conv.id
-        convIdRef.current = currentId
-        setConvId(currentId)
-        window.history.replaceState(null, "", `/c/${currentId}`)
-      }
-
-      toast.promise(uploadFile(currentId, file), {
-        loading: "Excel yukleniyor...",
-        success: (data) => {
-          handleSubmit(`"${data.filename}" dosyasini yukledim. Lutfen bu dosyayi analiz et.`)
-          return `${data.filename} basariyla yuklendi.`
-        },
-        error: "Dosya yuklenirken bir hata olustu.",
-      })
-    } catch (error) {
-      console.error("Upload error:", error)
-      toast.error("Dosya yuklenirken bir hata olustu.")
-    }
   }
 
   return (
@@ -248,7 +216,7 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
             <ChatInput
               onSubmit={handleSubmit}
               onStop={handleStop}
-              onUpload={handleUpload}
+
               isLoading={thread.isLoading}
             />
           </div>

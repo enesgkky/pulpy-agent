@@ -76,7 +76,7 @@ export class AgentService {
   private createAgent(options: AgentOptions) {
     const model = this.createModel(options);
 
-    let systemPrompt = `You are Pulpy, a corporate AI assistant.
+    let systemPrompt = `You are Morf, a corporate AI assistant developed by Viziowise AI.
 
 You help professionals with business tasks including data analysis, report generation, code development, research, and strategic planning.
 

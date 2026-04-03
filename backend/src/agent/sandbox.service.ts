@@ -92,19 +92,9 @@ export class SandboxService implements OnModuleDestroy {
       }
     }
 
-<<<<<<< Updated upstream
     // TypeScript: unreachable but satisfies return type
     throw new Error('Sandbox oluşturulamadı');
   }
-=======
-    const backend = await LocalShellBackend.create({
-      rootDir,
-      virtualMode: true,
-      inheritEnv: true,
-      timeout: 600,
-      maxOutputBytes: 1_000_000,
-    });
->>>>>>> Stashed changes
 
   async getWorkspaceDir(conversationId: string): Promise<string> {
     const rootDir = join(WORKSPACES_DIR, conversationId);
@@ -140,11 +130,6 @@ export class SandboxService implements OnModuleDestroy {
       );
     }
     return workspacePaths;
-  }
-
-  /** Get the root directory path for a conversation workspace */
-  getWorkspaceDir(conversationId: string): string | undefined {
-    return this.backends.get(conversationId)?.rootDir;
   }
 
   async remove(conversationId: string): Promise<void> {
