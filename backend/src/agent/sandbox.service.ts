@@ -1,8 +1,13 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { LocalShellBackend } from 'deepagents';
-import { mkdir, cp, rm } from 'fs/promises';
+import { mkdir, cp, rm, copyFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
+
+/** Normalize Unicode to NFC and replace problematic characters for safe filenames */
+function sanitizeFilename(name: string): string {
+  return name.normalize('NFC');
+}
 
 interface BackendEntry {
   backend: LocalShellBackend;
@@ -87,9 +92,19 @@ export class SandboxService implements OnModuleDestroy {
       }
     }
 
+<<<<<<< Updated upstream
     // TypeScript: unreachable but satisfies return type
     throw new Error('Sandbox oluşturulamadı');
   }
+=======
+    const backend = await LocalShellBackend.create({
+      rootDir,
+      virtualMode: true,
+      inheritEnv: true,
+      timeout: 600,
+      maxOutputBytes: 1_000_000,
+    });
+>>>>>>> Stashed changes
 
   async getWorkspaceDir(conversationId: string): Promise<string> {
     const rootDir = join(WORKSPACES_DIR, conversationId);
@@ -101,6 +116,35 @@ export class SandboxService implements OnModuleDestroy {
       existing.lastUsedAt = Date.now();
     }
     return rootDir;
+  }
+
+  /** Copy uploaded files into the conversation workspace and return workspace-relative paths */
+  async copyFilesToWorkspace(
+    conversationId: string,
+    files: { path: string; originalName: string }[],
+  ): Promise<string[]> {
+    const entry = this.backends.get(conversationId);
+    if (!entry) return [];
+
+    const uploadsDir = join(entry.rootDir, 'uploads');
+    await mkdir(uploadsDir, { recursive: true });
+
+    const workspacePaths: string[] = [];
+    for (const file of files) {
+      const safeName = sanitizeFilename(file.originalName);
+      const dest = join(uploadsDir, safeName);
+      await copyFile(file.path, dest);
+      workspacePaths.push(`/uploads/${safeName}`);
+      this.logger.log(
+        `[sandbox] Copied ${safeName} to workspace ${conversationId}`,
+      );
+    }
+    return workspacePaths;
+  }
+
+  /** Get the root directory path for a conversation workspace */
+  getWorkspaceDir(conversationId: string): string | undefined {
+    return this.backends.get(conversationId)?.rootDir;
   }
 
   async remove(conversationId: string): Promise<void> {

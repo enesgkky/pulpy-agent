@@ -16,6 +16,16 @@ RUN npm run build
 FROM base AS production
 ENV NODE_ENV=production
 
+# Install Python and data processing libraries for agent skills
+RUN apk add --no-cache python3 py3-pip && \
+    python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir \
+      pandas openpyxl xlsxwriter \
+      pdfplumber pypdf reportlab \
+      pytesseract pdf2image
+
+ENV PATH="/opt/venv/bin:$PATH"
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/skills ./skills

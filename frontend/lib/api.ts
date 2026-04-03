@@ -53,6 +53,26 @@ export interface McpTestResult {
   error?: string
 }
 
+export interface UploadedFile {
+  filename: string
+  originalName: string
+  path: string
+  size: number
+}
+
+export async function uploadFiles(files: File[]): Promise<UploadedFile[]> {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append("files", file)
+  }
+  const res = await fetch(`${BASE_URL}/conversation/upload`, {
+    method: "POST",
+    body: formData,
+  })
+  if (!res.ok) throw new Error("Failed to upload files")
+  return res.json()
+}
+
 export async function testMcpConnection(url: string): Promise<McpTestResult> {
   const res = await fetch(`${BASE_URL}/mcp/test`, {
     method: "POST",

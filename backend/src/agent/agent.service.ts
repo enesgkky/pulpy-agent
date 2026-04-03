@@ -16,6 +16,7 @@ export interface AgentOptions {
   model?: string;
   backend?: LocalShellBackend;
   mcpTools?: StructuredTool[];
+  uploadedFiles?: string[];
 }
 
 @Injectable()
@@ -75,8 +76,7 @@ export class AgentService {
   private createAgent(options: AgentOptions) {
     const model = this.createModel(options);
 
-    const agentOptions: Parameters<typeof createDeepAgent>[0] = {
-      systemPrompt: `You are Pulpy, a corporate AI assistant.
+    let systemPrompt = `You are Pulpy, a corporate AI assistant.
 
 You help professionals with business tasks including data analysis, report generation, code development, research, and strategic planning.
 
@@ -86,7 +86,22 @@ Guidelines:
 - When writing code, follow best practices and include clear explanations.
 - Use available skills when they match the user's request.
 - If the user writes in Turkish, respond in Turkish. Otherwise match the user's language.
-- Structure complex answers with headings, lists, and tables where appropriate.`,
+- Structure complex answers with headings, lists, and tables where appropriate.
+
+File handling:
+- Users may upload files. Uploaded files are stored in the /uploads/ directory.
+- When a user mentions a file or you need to work with uploaded data, first run \`ls /uploads/\` to discover available files.
+- For Excel/CSV files: use Python with pandas or openpyxl to read and analyze.
+- For PDF files: use Python with pdfplumber or pypdf to extract text and tables.
+- For SQL files: read the file content and analyze the queries.
+- Always read the actual file content before responding about it.`;
+
+    if (options.uploadedFiles?.length) {
+      systemPrompt += `\n\nThe following files were just uploaded and are available in the workspace:\n${options.uploadedFiles.map((f) => `- ${f}`).join('\n')}`;
+    }
+
+    const agentOptions: Parameters<typeof createDeepAgent>[0] = {
+      systemPrompt,
     };
 
     if (model) {
@@ -117,6 +132,7 @@ Guidelines:
       {
         encoding: 'text/event-stream',
         streamMode: ['values', 'messages'],
+        recursionLimit: 500,
       },
     );
 

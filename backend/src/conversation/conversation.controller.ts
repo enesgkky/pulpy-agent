@@ -10,9 +10,19 @@ import {
   Header,
   Logger,
   UseInterceptors,
+<<<<<<< Updated upstream
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+=======
+  UploadedFiles,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { mkdirSync, existsSync } from 'fs';
+import { join, extname } from 'path';
+import { randomUUID } from 'crypto';
+>>>>>>> Stashed changes
 import type { Response } from 'express';
 import { ConversationService } from './conversation.service';
 import { AgentService } from '../agent/agent.service';
@@ -25,6 +35,9 @@ import {
   SendMessageDto,
 } from './dto/send-message.dto';
 import { getMcpTools } from '../mcp/mcp-tools.adapter';
+
+const UPLOADS_DIR = join(process.cwd(), 'uploads');
+if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
 
 function extractTextContent(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -97,6 +110,30 @@ export class ConversationController {
     return this.conversationService.findHistory(id);
   }
 
+  // ─── File Upload ─────────────────────────────────────────
+
+  @Post('upload')
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+        filename: (_req, file, cb) => {
+          const uniqueName = `${randomUUID()}${extname(file.originalname)}`;
+          cb(null, uniqueName);
+        },
+      }),
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
+    }),
+  )
+  async uploadFiles(@UploadedFiles() files: Express.Multer.File[]) {
+    return files.map((f) => ({
+      filename: f.filename,
+      originalName: f.originalname.normalize('NFC'),
+      path: f.path,
+      size: f.size,
+    }));
+  }
+
   // ─── Streaming ────────────────────────────────────────────
 
   @Post('stream')
@@ -114,9 +151,23 @@ export class ConversationController {
 
     const backend = await this.sandboxService.getOrCreate(conversation.id);
 
+<<<<<<< Updated upstream
     this.logger.log(
       `Test 12345`,
     );
+=======
+    // Copy uploaded files into workspace if provided
+    let uploadedFiles: string[] = [];
+    if (dto.files?.length) {
+      uploadedFiles = await this.sandboxService.copyFilesToWorkspace(
+        conversation.id,
+        dto.files.map((f) => ({ path: f.path, originalName: f.originalName })),
+      );
+      this.logger.log(
+        `[stream] Copied ${uploadedFiles.length} file(s) to workspace`,
+      );
+    }
+>>>>>>> Stashed changes
 
     const mcpTools = dto.mcpServers?.length
       ? await getMcpTools(dto.mcpServers)
@@ -133,6 +184,7 @@ export class ConversationController {
       model: dto.model,
       backend,
       mcpTools,
+      uploadedFiles: uploadedFiles.length ? uploadedFiles : undefined,
     };
 
     this.logger.log(

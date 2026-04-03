@@ -11,6 +11,12 @@ export class McpServerDto {
   url: string;
 }
 
+export class FileReferenceDto {
+  filename: string;
+  originalName: string;
+  path: string;
+}
+
 export class SendMessageDto {
   content: string;
   conversationId?: string;
@@ -19,4 +25,5 @@ export class SendMessageDto {
   baseUrl?: string;
   model?: string;
   mcpServers?: McpServerDto[];
+  files?: FileReferenceDto[];
 }

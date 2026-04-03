@@ -1,12 +1,16 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import dynamic from "next/dynamic"
 import { useStream, FetchStreamTransport } from "@langchain/langgraph-sdk/react"
 import type { Message } from "@langchain/langgraph-sdk"
 import { useStickToBottomContext } from "use-stick-to-bottom"
+<<<<<<< Updated upstream
 import { BASE_URL, fetchConversation, createConversation, uploadFile } from "@/lib/api"
+=======
+import { BASE_URL, fetchConversation, type UploadedFile } from "@/lib/api"
+>>>>>>> Stashed changes
 import { loadSettings } from "./settings-dialog"
 import { ChatMessages } from "./chat-messages"
 import { ChatInput } from "./chat-input"
@@ -83,6 +87,9 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
       .catch(() => setHistory([]))
   }, [initialConvId])
 
+  // Pending files ref — set before submit, consumed by transport
+  const pendingFilesRef = useRef<UploadedFile[] | undefined>(undefined)
+
   // transport is created once — convId is read via ref to avoid recreation on convId change
   const transport = useMemo(
     () =>
@@ -102,6 +109,10 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
             svc === "viziowise"
               ? settings.viziowise.apiKey
               : settings.apiKeys[svc as keyof typeof settings.apiKeys]
+
+          // Consume pending files
+          const files = pendingFilesRef.current
+          pendingFilesRef.current = undefined
 
           return {
             ...init,
@@ -125,6 +136,7 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
                 settings.mcpServers?.length
                   ? settings.mcpServers
                   : undefined,
+              files: files?.length ? files : undefined,
             }),
           }
         },
@@ -159,11 +171,17 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
     return prevMessagesRef.current
   }, [history, thread.messages])
 
-  const handleSubmit = (text: string) => {
-    thread.submit({
-      messages: [{ type: "human", content: text }],
-    } as any)
-  }
+  const handleSubmit = useCallback(
+    (text: string, files?: UploadedFile[]) => {
+      if (files?.length) {
+        pendingFilesRef.current = files
+      }
+      thread.submit({
+        messages: [{ type: "human", content: text }],
+      } as any)
+    },
+    [thread],
+  )
 
   const handleStop = () => {
     thread.stop()
@@ -201,7 +219,7 @@ export function ChatLayout({ conversationId: initialConvId }: ChatLayoutProps) {
         <header className="flex shrink-0 items-center justify-between border-b px-4 py-2">
           <div className="flex items-center gap-2">
             <SidebarTrigger />
-            <h1 className="text-lg font-semibold">Pulpy</h1>
+            <h1 className="text-lg font-semibold">Morf V2</h1>
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
