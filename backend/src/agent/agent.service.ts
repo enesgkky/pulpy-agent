@@ -8,7 +8,7 @@ import type { LocalShellBackend } from 'deepagents';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { BaseLanguageModel } from '@langchain/core/language_models/base';
 import type { StructuredTool } from '@langchain/core/tools';
-import { tableGeneratorTool } from './tools';
+import { createTableGeneratorTool, TableStoreService } from './tools';
 
 export interface AgentOptions {
   service?: string;
@@ -22,7 +22,16 @@ export interface AgentOptions {
 
 @Injectable()
 export class AgentService {
-  constructor(private readonly config: ConfigService) { }
+  private readonly tableGeneratorTool: StructuredTool;
+
+  constructor(
+    private readonly config: ConfigService,
+    private readonly tableStore: TableStoreService,
+  ) {
+    this.tableGeneratorTool = createTableGeneratorTool(
+      this.tableStore,
+    ) as unknown as StructuredTool;
+  }
 
   private createModel(options: AgentOptions): BaseLanguageModel | undefined {
     const service = options.service;
@@ -172,9 +181,7 @@ Generative UI — Advanced Table:
     }
 
     // Built-in generative-UI tools that ship with the agent itself.
-    const builtinTools: StructuredTool[] = [
-      tableGeneratorTool as unknown as StructuredTool,
-    ];
+    const builtinTools: StructuredTool[] = [this.tableGeneratorTool];
 
     agentOptions.tools = [...builtinTools, ...(options.mcpTools ?? [])];
 

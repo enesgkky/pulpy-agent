@@ -1,5 +1,6 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+import type { TableStoreService } from './table-store.service';
 
 // ─── Frontend Sözleşmesi ──────────────────────────────────────────────────
 // AdvancedTableProps ile birebir aynı kalmalı. Frontend tarafındaki tipi
@@ -21,13 +22,18 @@ export interface AdvancedTablePayload {
 }
 
 // ─── Markdown Wrapper ─────────────────────────────────────────────────────
-// LLM çıktısının içine gömülecek özel kod bloğu. Frontend'deki
-// ChatMarkdownRenderer bu language tag'ini yakalayıp <AdvancedTable /> render
-// edecek. Dilini değiştirirseniz iki tarafı da güncellemeniz gerekir.
+// LLM çıktısının içine gömülecek özel kod bloğu. İçerik, satırları içeren
+// tam JSON değil — sadece backend'de saklanan payload'un tableId referansı.
+// Böylece 1000 satırlık bir tablo bile LLM stream'inde birkaç byte yer tutar.
+// Frontend bu ID'yi parse edip GET /tables/:id ile gerçek veriyi çeker.
 export const ADVANCED_TABLE_LANG = 'advanced-table';
 
-function wrapAsAdvancedTableBlock(payload: AdvancedTablePayload): string {
-  const json = JSON.stringify(payload, null, 2);
+export interface AdvancedTableRef {
+  tableId: string;
+}
+
+function wrapAsAdvancedTableBlock(ref: AdvancedTableRef): string {
+  const json = JSON.stringify(ref);
   return ['```' + ADVANCED_TABLE_LANG, json, '```'].join('\n');
 }
 
@@ -193,10 +199,11 @@ const AdvancedTablePayloadSchema = z.object({
 });
 
 // ─── Tool ─────────────────────────────────────────────────────────────────
-// Factory pattern: ileride DB bağlantısı, kullanıcı context'i vs. enjekte
-// edebilmek için. Şimdilik bağımsız.
+// Factory, TableStoreService enjekte eder: tool payload'u store'a atar,
+// yanıt olarak sadece { tableId } döner. Böylece 1000+ satırlık tabloların
+// veri gövdesi LLM stream'ine (ve chat geçmişine) hiç yazılmaz.
 
-export function createTableGeneratorTool() {
+export function createTableGeneratorTool(store: TableStoreService) {
   return tool(
     async (rawInput): Promise<string> => {
       const input = TableGeneratorInputSchema.parse(rawInput);
@@ -205,21 +212,20 @@ export function createTableGeneratorTool() {
       // Sözleşme doğrulaması — bozulursa exception → tool error → LLM tekrar dener.
       AdvancedTablePayloadSchema.parse(payload);
 
-      return wrapAsAdvancedTableBlock(payload);
+      const tableId = store.put(payload);
+      return wrapAsAdvancedTableBlock({ tableId });
     },
     {
       name: 'generate_advanced_table',
       description: [
         'Kullanıcı tablo, liste veya yapısal veri istediğinde çağır. Örn:',
         '"mali işler raporunu çıkar", "son satışları göster", "aktif çalışanları listele".',
-        'Tool, advanced-table kod bloğu içinde JSON döner — bu bloğu nihai',
-        'cevabına AYNEN, hiçbir değişiklik yapmadan ekle. Etrafına kısa bir',
-        'açıklama yazabilirsin ama bloğun içeriğine dokunma.',
+        'Tool, advanced-table kod bloğu içinde bir tableId döner — bu bloğu',
+        'nihai cevabına AYNEN, hiçbir değişiklik yapmadan ekle. Bloğun',
+        'içeriğine dokunma; satır veya sütun verisini asla kendin yazma.',
+        'Etrafına kısa bir açıklama yazabilirsin.',
       ].join(' '),
       schema: TableGeneratorInputSchema,
     },
   );
 }
-
-// Singleton convenience export — agent.service tarafında doğrudan kullanılabilir.
-export const tableGeneratorTool = createTableGeneratorTool();

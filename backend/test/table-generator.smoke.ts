@@ -14,9 +14,10 @@
 
 /* eslint-disable no-console */
 import {
-  tableGeneratorTool,
+  createTableGeneratorTool,
   ADVANCED_TABLE_LANG,
 } from '../src/agent/tools/table-generator.tool';
+import { TableStoreService } from '../src/agent/tools/table-store.service';
 
 type Row = Record<string, string | number>;
 interface Column {
@@ -32,6 +33,11 @@ interface Payload {
   rows: Row[];
 }
 
+// Instantiate store + tool once. Every tool call pushes into the same store
+// so we can verify the returned tableId round-trips back to the real payload.
+const store = new TableStoreService();
+const tool = createTableGeneratorTool(store);
+
 let passed = 0;
 let failed = 0;
 
@@ -45,7 +51,12 @@ function check(label: string, cond: boolean, detail?: string) {
   }
 }
 
-function extractJson(blockString: string): Payload {
+/**
+ * Parses the fenced advanced-table block. Since the refactor, the block
+ * contains a `{ tableId }` reference — the full payload lives in the
+ * TableStoreService and is resolved here by calling `store.get(tableId)`.
+ */
+function extractPayload(blockString: string): Payload {
   const fence = '```' + ADVANCED_TABLE_LANG;
   const start = blockString.indexOf(fence);
   if (start === -1) throw new Error('advanced-table fence missing');
@@ -53,7 +64,9 @@ function extractJson(blockString: string): Payload {
   const end = afterFence.indexOf('```');
   if (end === -1) throw new Error('closing fence missing');
   const json = afterFence.slice(0, end).trim();
-  return JSON.parse(json) as Payload;
+  const ref = JSON.parse(json) as { tableId?: string };
+  if (!ref.tableId) throw new Error('block body missing tableId');
+  return store.get(ref.tableId) as Payload;
 }
 
 async function runCase(
@@ -64,15 +77,19 @@ async function runCase(
   console.log(`\n[${name}]`);
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = (await tableGeneratorTool.invoke(input as any)) as string;
+    const raw = (await tool.invoke(input as any)) as string;
     check('returns a string', typeof raw === 'string');
     check(
       'wraps in ```advanced-table fence',
       raw.startsWith('```' + ADVANCED_TABLE_LANG) && raw.trimEnd().endsWith('```'),
     );
 
-    const payload = extractJson(raw);
-    check('JSON parses', !!payload);
+    const refBody = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
+    const ref = JSON.parse(refBody) as { tableId?: string };
+    check('block body contains tableId', typeof ref.tableId === 'string' && ref.tableId.length > 0);
+
+    const payload = extractPayload(raw);
+    check('store round-trip returns payload', !!payload);
     check('has columns array', Array.isArray(payload.columns) && payload.columns.length > 0);
     check('has rows array', Array.isArray(payload.rows));
     check(
@@ -148,7 +165,7 @@ async function main() {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   console.log('\n[invalid-input: query missing]');
   try {
-    await tableGeneratorTool.invoke({ category: 'finance' } as any);
+    await tool.invoke({ category: 'finance' } as any);
     failed++;
     console.log('  FAIL expected Zod error, got success');
   } catch (err) {
@@ -158,7 +175,7 @@ async function main() {
 
   console.log('\n[invalid-input: limit out of range]');
   try {
-    await tableGeneratorTool.invoke({
+    await tool.invoke({
       query: 'x',
       category: 'finance',
       limit: 9999,
