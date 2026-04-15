@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { chatMarkdownComponents } from "@/components/chat/chat-markdown-renderer"
 import { Markdown } from "./markdown"
 
 export type MessageProps = {
@@ -63,7 +64,11 @@ const MessageContent = ({
   )
 
   return markdown ? (
-    <Markdown className={classNames} {...props}>
+    <Markdown
+      className={classNames}
+      components={chatMarkdownComponents}
+      {...props}
+    >
       {children as string}
     </Markdown>
   ) : (

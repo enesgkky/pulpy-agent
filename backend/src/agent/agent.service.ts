@@ -8,6 +8,7 @@ import type { LocalShellBackend } from 'deepagents';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { BaseLanguageModel } from '@langchain/core/language_models/base';
 import type { StructuredTool } from '@langchain/core/tools';
+import { tableGeneratorTool } from './tools';
 
 export interface AgentOptions {
   service?: string;
@@ -145,7 +146,13 @@ CRITICAL — Dashboard/artifact data embedding rules:
   3. Check that every \`<tbody>\` contains \`<tr>\` rows with data.
   4. Check that every Chart.js \`labels\` and \`data\` array is non-empty.
   5. If ANY section is empty, rewrite the artifact with the missing data filled in or the empty section removed.
-- When using todos/tasks, always include a final "Artifact'i dogrula" step.`;
+- When using todos/tasks, always include a final "Artifact'i dogrula" step.
+
+Generative UI — Advanced Table:
+- When the user asks for a structured table, list, report, or any tabular data (e.g. "tablo çıkar", "rapor oluştur", "listele"), you MUST call the \`generate_advanced_table\` tool instead of writing a Markdown table by hand.
+- The tool returns a fenced code block tagged \`advanced-table\` containing JSON. Include that block in your final response EXACTLY as returned — do not edit, reformat, summarize, or pretty-print the JSON inside it. The frontend renders it as an interactive React table.
+- You may write a short sentence before or after the block, but never inside it.
+- If the user asks for raw text instead of an interactive table, do not call this tool.`;
 
     if (options.uploadedFiles?.length) {
       systemPrompt += `\n\nThe user just uploaded the following files (available in uploads/ directory):\n${options.uploadedFiles.map((f) => `- ${f}`).join('\n')}\nYou can access them directly, e.g.: \`cat "uploads/${options.uploadedFiles[0]}"\``;
@@ -164,9 +171,12 @@ CRITICAL — Dashboard/artifact data embedding rules:
       agentOptions.skills = ['/skills/'];
     }
 
-    if (options.mcpTools?.length) {
-      agentOptions.tools = options.mcpTools;
-    }
+    // Built-in generative-UI tools that ship with the agent itself.
+    const builtinTools: StructuredTool[] = [
+      tableGeneratorTool as unknown as StructuredTool,
+    ];
+
+    agentOptions.tools = [...builtinTools, ...(options.mcpTools ?? [])];
 
     return createDeepAgent(agentOptions);
   }
