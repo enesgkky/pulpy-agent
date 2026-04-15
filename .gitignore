@@ -31,3 +31,9 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent runtime state (per-conversation workspaces, uploads, artifacts)
+backend/workspaces/
+backend/uploads/
+backend/out*.log
+backend/test_out*.txt
