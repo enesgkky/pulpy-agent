@@ -118,7 +118,7 @@ function withIndexColumn(payload: AdvancedTableProps): AdvancedTableProps {
 // Fixed height for chat-rendered tables — every table gets the same large
 // frame regardless of row count, so small datasets don't render as a tiny
 // strip. LyteNyte Grid scrolls internally when rows exceed the viewport.
-const ADVANCED_TABLE_HEIGHT = 640;
+const ADVANCED_TABLE_HEIGHT = 480;
 
 /**
  * Streaming sırasında blok henüz tamamlanmamış olabilir — JSON yarım gelir.
