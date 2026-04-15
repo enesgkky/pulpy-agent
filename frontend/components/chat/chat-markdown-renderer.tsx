@@ -106,17 +106,19 @@ function withIndexColumn(payload: AdvancedTableProps): AdvancedTableProps {
   return {
     ...payload,
     columns: [
-      { key: "__index", label: "No", type: "number" },
+      // type'ı kasıtlı olarak "number" VERİLMİYOR — advanced-table sadece
+      // number kolonları aggregate ediyor. Index'i number yaparsak footer'da
+      // "Top: 6" gibi anlamsız bir satır numarası toplamı çıkar.
+      { key: "__index", label: "No" },
       ...payload.columns,
     ],
   };
 }
 
-function computeTableHeight(rowCount: number): number {
-  const chromeHeight = 160; // toolbar + header + filter row + footer
-  const rowHeight = 36;
-  return Math.min(640, Math.max(320, chromeHeight + rowCount * rowHeight));
-}
+// Fixed height for chat-rendered tables — every table gets the same large
+// frame regardless of row count, so small datasets don't render as a tiny
+// strip. LyteNyte Grid scrolls internally when rows exceed the viewport.
+const ADVANCED_TABLE_HEIGHT = 640;
 
 /**
  * Streaming sırasında blok henüz tamamlanmamış olabilir — JSON yarım gelir.
@@ -239,9 +241,9 @@ function RemoteAdvancedTable({ tableId }: { tableId: string }) {
   return (
     <div
       className="my-4 w-full"
-      style={{ height: computeTableHeight(state.payload.rows.length) }}
+      style={{ height: ADVANCED_TABLE_HEIGHT }}
     >
-      <AdvancedTable {...propsWithIndex} />
+      <AdvancedTable {...propsWithIndex} hideFooterAggregate />
     </div>
   );
 }
@@ -313,9 +315,9 @@ function CodeComponent({ className, children, node, ...props }: CodeProps) {
       return (
         <div
           className="my-4 w-full"
-          style={{ height: computeTableHeight(parsed.rows.length) }}
+          style={{ height: ADVANCED_TABLE_HEIGHT }}
         >
-          <AdvancedTable {...propsWithIndex} />
+          <AdvancedTable {...propsWithIndex} hideFooterAggregate />
         </div>
       );
     }

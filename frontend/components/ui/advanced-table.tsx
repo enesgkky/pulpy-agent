@@ -162,6 +162,12 @@ export interface AdvancedTableProps {
   description?: string;
   columns: AdvancedTableColumn[];
   rows: Record<string, string | number>[];
+  /**
+   * Opt-in: suppress the bottom aggregate ("Top: ..." / "Ort: ...") row.
+   * Default false so existing call-sites keep their current behaviour. Used
+   * by the chat renderer which doesn't want automatic totals under the data.
+   */
+  hideFooterAggregate?: boolean;
 }
 
 const METRIC_KEY = "__metric__";
@@ -1006,7 +1012,7 @@ function TableToolbar({
 
 // ─── Component ──────────────────────────────────────────
 
-export function AdvancedTable({ title, description, columns, rows }: AdvancedTableProps) {
+export function AdvancedTable({ title, description, columns, rows, hideFooterAggregate = false }: AdvancedTableProps) {
   const apiRef = useRef<Grid.API<TableSpec>>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -1808,6 +1814,7 @@ export function AdvancedTable({ title, description, columns, rows }: AdvancedTab
   // ── Bottom aggregate row ────────────────────────────
 
   const bottomData = useMemo(() => {
+    if (hideFooterAggregate) return undefined;
     const numCols = columns.filter((c) => c.type === "number");
     if (!numCols.length) return undefined;
 
@@ -1829,7 +1836,7 @@ export function AdvancedTable({ title, description, columns, rows }: AdvancedTab
     }
 
     return [metricRow];
-  }, [columns, filteredRows, aggregateMode]);
+  }, [hideFooterAggregate, columns, filteredRows, aggregateMode]);
 
   // ── Data Source ─────────────────────────────────────
 
